@@ -12,10 +12,6 @@ let package = Package(
             name: "Resolver-Static",
             type: .static,
             targets: ["Resolver"]),
-        .library(
-            name: "Resolver-Dynamic",
-            type: .dynamic,
-            targets: ["Resolver"]),
     ],
     dependencies: [],
     targets: [
