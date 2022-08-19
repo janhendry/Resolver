@@ -30,8 +30,6 @@ import SwiftUI
 #elseif os(macOS) || os(tvOS) || os(watchOS)
 import Foundation
 import SwiftUI
-#else
-import Foundation
 #endif
 
 // swiftlint:disable file_length
