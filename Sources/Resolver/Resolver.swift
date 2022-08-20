@@ -24,13 +24,6 @@
 // THE SOFTWARE.
 //
 
-#if os(iOS)
-import UIKit
-import SwiftUI
-#elseif os(macOS) || os(tvOS) || os(watchOS)
-import Foundation
-import SwiftUI
-#endif
 
 // swiftlint:disable file_length
 
@@ -85,32 +78,28 @@ public final class Resolver {
     /// Adds a child container to this container. Children will be searched if this container fails to find a registration factory
     /// that matches the desired type.
     public func add(child: Resolver) {
-        lock.lock()
-        defer { lock.unlock() }
+ 
         self.childContainers.append(child)
     }
 
     /// Call function to force one-time initialization of the Resolver registries. Usually not needed as functionality
     /// occurs automatically the first time a resolution function is called.
     public final func registerServices() {
-        lock.lock()
-        defer { lock.unlock() }
+ 
         registrationCheck()
     }
 
     /// Call function to force one-time initialization of the Resolver registries. Usually not needed as functionality
     /// occurs automatically the first time a resolution function is called.
     public static var registerServices: (() -> Void)? = {
-        lock.lock()
-        defer { lock.unlock() }
+ 
         registrationCheck()
     }
 
     /// Called to effectively reset Resolver to its initial state, including recalling registerAllServices if it was provided. This will
     /// also reset the three known caches: application, cached, shared.
     public static func reset() {
-        lock.lock()
-        defer { lock.unlock() }
+ 
         main = Resolver()
         root = main
         ResolverScope.application.reset()
@@ -174,8 +163,7 @@ public final class Resolver {
     @discardableResult
     public final func register<Service>(_ type: Service.Type = Service.self, name: Resolver.Name? = nil,
                                         factory: @escaping ResolverFactory<Service>) -> ResolverOptions<Service> {
-        lock.lock()
-        defer { lock.unlock() }
+ 
         let key = Int(bitPattern: ObjectIdentifier(type))
         let factory: ResolverFactoryAnyArguments = { (_,_) in factory() }
         let registration = ResolverRegistration<Service>(resolver: self, key: key, name: name, factory: factory)
@@ -194,8 +182,7 @@ public final class Resolver {
     @discardableResult
     public final func register<Service>(_ type: Service.Type = Service.self, name: Resolver.Name? = nil,
                                         factory: @escaping ResolverFactoryResolver<Service>) -> ResolverOptions<Service> {
-        lock.lock()
-        defer { lock.unlock() }
+ 
         let key = Int(bitPattern: ObjectIdentifier(type))
         let factory: ResolverFactoryAnyArguments = { (r,_) in factory(r) }
         let registration = ResolverRegistration<Service>(resolver: self, key: key, name: name, factory: factory)
@@ -214,8 +201,7 @@ public final class Resolver {
     @discardableResult
     public final func register<Service>(_ type: Service.Type = Service.self, name: Resolver.Name? = nil,
                                         factory: @escaping ResolverFactoryArgumentsN<Service>) -> ResolverOptions<Service> {
-        lock.lock()
-        defer { lock.unlock() }
+ 
         let key = Int(bitPattern: ObjectIdentifier(type))
         let factory: ResolverFactoryAnyArguments = { (r,a) in factory(r, Args(a)) }
         let registration = ResolverRegistration<Service>(resolver: self, key: key, name: name, factory: factory )
@@ -233,8 +219,7 @@ public final class Resolver {
     ///
     /// - returns: Instance of specified Service.
     public static func resolve<Service>(_ type: Service.Type = Service.self, name: Resolver.Name? = nil, args: Any? = nil) -> Service {
-        lock.lock()
-        defer { lock.unlock() }
+ 
         registrationCheck()
         if let registration = root.lookup(type, name: name), let service = registration.resolve(resolver: root, args: args) {
 #if DEBUG
@@ -255,8 +240,7 @@ public final class Resolver {
     /// - returns: Instance of specified Service.
     ///
     public final func resolve<Service>(_ type: Service.Type = Service.self, name: Resolver.Name? = nil, args: Any? = nil) -> Service {
-        lock.lock()
-        defer { lock.unlock() }
+ 
         registrationCheck()
         if let registration = lookup(type, name: name), let service = registration.resolve(resolver: self, args: args) {
 #if DEBUG
@@ -276,8 +260,6 @@ public final class Resolver {
     /// - returns: Instance of specified Service.
     ///
     public static func optional<Service>(_ type: Service.Type = Service.self, name: Resolver.Name? = nil, args: Any? = nil) -> Service? {
-        lock.lock()
-        defer { lock.unlock() }
         registrationCheck()
         if let registration = root.lookup(type, name: name), let service = registration.resolve(resolver: root, args: args) {
 #if DEBUG
@@ -298,8 +280,6 @@ public final class Resolver {
     /// - returns: Instance of specified Service.
     ///
     public final func optional<Service>(_ type: Service.Type = Service.self, name: Resolver.Name? = nil, args: Any? = nil) -> Service? {
-        lock.lock()
-        defer { lock.unlock() }
         registrationCheck()
         if let registration = lookup(type, name: name), let service = registration.resolve(resolver: self, args: args) {
 #if DEBUG
@@ -341,34 +321,33 @@ public final class Resolver {
     }
 
     private let NONAME = "*"
-    private let lock = Resolver.lock
     private var childContainers: [Resolver] = []
     private var typedRegistrations = [Int : Any]()
     private var namedRegistrations = [String : Any]()
 }
 
-/// Resolving an instance of a service is a recursive process (service A needs a B which needs a C).
-private final class ResolverRecursiveLock {
-    init() {
-        pthread_mutexattr_init(&recursiveMutexAttr)
-        pthread_mutexattr_settype(&recursiveMutexAttr, PTHREAD_MUTEX_RECURSIVE)
-        pthread_mutex_init(&recursiveMutex, &recursiveMutexAttr)
-    }
-    @inline(__always)
-    final func lock() {
-        pthread_mutex_lock(&recursiveMutex)
-    }
-    @inline(__always)
-    final func unlock() {
-        pthread_mutex_unlock(&recursiveMutex)
-    }
-    private var recursiveMutex = pthread_mutex_t()
-    private var recursiveMutexAttr = pthread_mutexattr_t()
-}
-
-extension Resolver {
-    fileprivate static let lock = ResolverRecursiveLock()
-}
+///// Resolving an instance of a service is a recursive process (service A needs a B which needs a C).
+//private final class ResolverRecursiveLock {
+//    init() {
+//        pthread_mutexattr_init(&recursiveMutexAttr)
+//        pthread_mutexattr_settype(&recursiveMutexAttr, PTHREAD_MUTEX_RECURSIVE)
+//        pthread_mutex_init(&recursiveMutex, &recursiveMutexAttr)
+//    }
+//    @inline(__always)
+//    final func lock() {
+//        pthread_mutex_lock(&recursiveMutex)
+//    }
+//    @inline(__always)
+//    final func unlock() {
+//        pthread_mutex_unlock(&recursiveMutex)
+//    }
+//    private var recursiveMutex = pthread_mutex_t()
+//    private var recursiveMutexAttr = pthread_mutexattr_t()
+//}
+//
+//extension Resolver {
+//    fileprivate static let lock = ResolverRecursiveLock()
+//}
 
 /// Resolver Service Name Space Support
 extension Resolver {
@@ -414,7 +393,6 @@ extension Resolver {
             }
         }
 
-#if swift(>=5.2)
         public func callAsFunction<T>() -> T {
             assert(args.count == 1, "argument order indeterminate, use keyed arguments")
             return (args.first?.value as? T)!
@@ -423,7 +401,6 @@ extension Resolver {
         public func callAsFunction<T>(_ key: String) -> T {
             return (args[key] as? T)!
         }
-#endif
 
         public func optional<T>() -> T? {
             return args.first?.value as? T
@@ -711,36 +688,6 @@ public final class ResolverScopeContainer: ResolverScope {
 }
 
 
-#if os(iOS)
-/// Storyboard Automatic Resolution Protocol
-public protocol StoryboardResolving: Resolving {
-    func resolveViewController()
-}
-
-/// Storyboard Automatic Resolution Trigger
-public extension UIViewController {
-    // swiftlint:disable unused_setter_value
-    @objc dynamic var resolving: Bool {
-        get {
-            return true
-        }
-        set {
-            if let vc = self as? StoryboardResolving {
-                vc.resolveViewController()
-            }
-        }
-    }
-    // swiftlint:enable unused_setter_value
-}
-#endif
-
-// Swift Property Wrappers
-
-#if swift(>=5.1)
-/// Immediate injection property wrapper.
-///
-/// Wrapped dependent service is resolved immediately using Resolver.root upon struct initialization.
-///
 @propertyWrapper public struct Injected<Service> {
     private var service: Service
     public init() {
@@ -786,7 +733,6 @@ public extension UIViewController {
 /// Wrapped dependent service is not resolved until service is accessed.
 ///
 @propertyWrapper public struct LazyInjected<Service> {
-    private var lock = Resolver.lock
     private var initialize: Bool = true
     private var service: Service!
     public var container: Resolver?
@@ -798,14 +744,13 @@ public extension UIViewController {
         self.container = container
     }
     public var isEmpty: Bool {
-        lock.lock()
-        defer { lock.unlock() }
+ 
         return service == nil
     }
     public var wrappedValue: Service {
         mutating get {
-            lock.lock()
-            defer { lock.unlock() }
+
+
             if initialize {
                 self.initialize = false
                 self.service = container?.resolve(Service.self, name: name, args: args) ?? Resolver.resolve(Service.self, name: name, args: args)
@@ -813,8 +758,8 @@ public extension UIViewController {
             return service
         }
         mutating set {
-            lock.lock()
-            defer { lock.unlock() }
+
+
             initialize = false
             service = newValue
         }
@@ -824,8 +769,7 @@ public extension UIViewController {
         mutating set { self = newValue }
     }
     public mutating func release() {
-        lock.lock()
-        defer { lock.unlock() }
+ 
         self.service = nil
     }
 }
@@ -835,7 +779,6 @@ public extension UIViewController {
 /// Wrapped dependent service is not resolved until service is accessed.
 ///
 @propertyWrapper public struct WeakLazyInjected<Service> {
-    private var lock = Resolver.lock
     private var initialize: Bool = true
     private weak var service: AnyObject?
     public var container: Resolver?
@@ -847,14 +790,13 @@ public extension UIViewController {
         self.container = container
     }
     public var isEmpty: Bool {
-        lock.lock()
-        defer { lock.unlock() }
+ 
         return service == nil
     }
     public var wrappedValue: Service? {
         mutating get {
-            lock.lock()
-            defer { lock.unlock() }
+
+
             if initialize {
                 self.initialize = false
                 self.service = (container?.resolve(Service.self, name: name, args: args)
@@ -863,8 +805,8 @@ public extension UIViewController {
             return service as? Service
         }
         mutating set {
-            lock.lock()
-            defer { lock.unlock() }
+
+
             initialize = false
             service = newValue as AnyObject
         }
@@ -874,31 +816,3 @@ public extension UIViewController {
         mutating set { self = newValue }
     }
 }
-
-#if os(iOS) || os(macOS) || os(tvOS) || os(watchOS)
-/// Immediate injection property wrapper for SwiftUI ObservableObjects. This wrapper is meant for use in SwiftUI Views and exposes
-/// bindable objects similar to that of SwiftUI @observedObject and @environmentObject.
-///
-/// Dependent service must be of type ObservableObject. Updating object state will trigger view update.
-///
-/// Wrapped dependent service is resolved immediately using Resolver.root upon struct initialization.
-///
-@available(OSX 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
-@propertyWrapper public struct InjectedObject<Service>: DynamicProperty where Service: ObservableObject {
-    @ObservedObject private var service: Service
-    public init() {
-        self.service = Resolver.resolve(Service.self)
-    }
-    public init(name: Resolver.Name? = nil, container: Resolver? = nil) {
-        self.service = container?.resolve(Service.self, name: name) ?? Resolver.resolve(Service.self, name: name)
-    }
-    public var wrappedValue: Service {
-        get { return service }
-        mutating set { service = newValue }
-    }
-    public var projectedValue: ObservedObject<Service>.Wrapper {
-        return self.$service
-    }
-}
-#endif
-#endif
